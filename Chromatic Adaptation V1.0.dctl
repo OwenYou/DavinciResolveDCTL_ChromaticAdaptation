@@ -1,0 +1,134 @@
+//DCTL Chromatic Adaptation(Bradford Linear Method) V1.0
+//Date & Time: 2020-July-3rd 16:48
+//Written By: Owen You
+
+//Expected input: ACES AP0 Linear
+//Output: ACES AP0 Linear
+
+//Reference Links:
+//01 adaptation algorithm: http://www.brucelindbloom.com/index.html?Math.html
+//02 CCT to CIE1931 xy coordinates algorithm: https://en.wikipedia.org/wiki/Planckian_locus#Approximation
+//03 ACES AP0-XYZ transform matrix: https://doi.org/10.5594/SMPTE.ST2065-1.2012
+//04 XYZ-ACES APO transform matrix: https://en.wikipedia.org/wiki/Academy_Color_Encoding_System#Converting_CIE_XYZ_values_to_ACES2065-1_values
+
+//User inputs
+//DEFINE_UI_PARAMS([variable name], [label], [ui element type], [default value], [min value], [max value], [step])
+DEFINE_UI_PARAMS(scct, Source CCT, DCTLUI_SLIDER_FLOAT, 6500, 2000, 10000.0, 100.0)
+DEFINE_UI_PARAMS(dcct, Destination CCT, DCTLUI_SLIDER_FLOAT, 6500, 2000, 10000.0, 100.0)
+
+//this function converts CCT value to XYZ color value (see reference 02)
+__DEVICE__ float3 cct2xyz(float inv)
+{
+    float x;//x coordinate on CIE 1931 xy plane
+    float y;//y coordinate on CIE 1931 xy plane
+    float outx;
+    float outy;
+    float outz;
+
+    if (inv < 4000.001f)
+    {
+        
+        x = (-266123900.0f)/(_powf(inv, 3.0f))-(234358.9f)/(_powf(inv, 2.0f))+(877.6956f)/(inv)+0.17991f;
+        //x coordinate calculate (under 4000 kelvin)
+        if (inv < 2222.001f)
+        {
+           y = (-1.1063814f)*(_powf(x, 3.0f))-(1.34811020f)*(_powf(x, 2.0f))+(2.18555832f)*(x)-0.20219683f;
+           //y coordinate calculate (under 2222 kelvin)
+        }
+        else
+        {
+           y = (-0.9549476f)*(_powf(x, 3.0f))-(1.37418593f)*(_powf(x, 2.0f))+(2.09137015f)*(x)-0.16748867f;
+           //y coordinate calculate (between 2222 kelvin and 4000 kelvin)
+        }
+    }
+    else
+    {
+        x = (-3025846900.0f)/(_powf(inv, 3.0f))+(2107037.9f)/(_powf(inv, 2.0f))+(222.6347f)/(inv)+0.240390f;
+        y = (3.081758f)*(_powf(x, 3.0f))-(5.8733867f)*(_powf(x, 2.0f))+(3.75112997f)*(x)-0.37001483f;
+        //x and y coordinates calculate (above 4000 kelvin)
+    }
+    
+    //transform xy coordinates to XYZ coordinates
+    outx = x/y;
+    outy = 1.0f;
+    outz = (1.0f-x-y)/y;
+
+    return make_float3(outx, outy, outz);
+}
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
+{    
+    float3 lms_src;//source cct LMS(rho, gamma, beta) value (see reference 01)
+    float3 lms_dst;//destination cct LMS(rho, gamma, beta) value (see reference 01)
+    float mtxm[9];//matrix M (see reference 01)
+
+    //ACES AP0 to XYZ matrix
+    const float mtxap0xyz[9] = 
+    {0.9525523959f, 0.0f, 0.0000936786f, 
+    0.3439664498f, 0.7281660966f, -0.0721325464f, 
+    0.0f, 0.0f, 1.0088251844f};
+
+    //XYZ to ACES AP0 matrix
+    const float mtxxyzap0[9]=
+    {1.0498110175f, 0.0f, -0.0000974845f,
+     -0.4959030231f, 1.3733130458f, 0.0982400361f,
+     0.0f, 0.0f, 0.9912520182f};
+
+    //matrix MA (see reference 01)
+    const float mtxma[9]=
+    {0.8951f, 0.2664f, -0.1614f,
+     -0.7502f, 1.7135f, 0.0367f, 
+     0.0389f, -0.0685f, 1.0296f};
+
+    //reverse of matrix MA (see reference 01)
+    const float mtxma_rev[9]=
+    {0.9869929f, -0.1470543f, 0.1599627f,
+     0.4323053f, 0.5183603f, 0.0492912f,
+    -0.0085287f, 0.0400428f, 0.9684867f};
+
+    float3 scctxyz = cct2xyz(scct);//calculate XYZ coordinate of source CCT
+    float3 dcctxyz = cct2xyz(dcct);//calculate XYZ coordinate of destination CCT
+
+    //calculate LMS (rho, gamma, beta) value of source CCT
+    lms_src.x = mtxma[0] * scctxyz.x + mtxma[1] * scctxyz.y + mtxma[2]* scctxyz.z;
+    lms_src.y = mtxma[3] * scctxyz.x + mtxma[4] * scctxyz.y + mtxma[5]* scctxyz.z;
+    lms_src.z = mtxma[6] * scctxyz.x + mtxma[7] * scctxyz.y + mtxma[8]* scctxyz.z;
+
+    //calculate LMS (rho, gamma, beta) value of destination CCT
+    lms_dst.x = mtxma[0] * dcctxyz.x + mtxma[1] * dcctxyz.y + mtxma[2]* dcctxyz.z;
+    lms_dst.y = mtxma[3] * dcctxyz.x + mtxma[4] * dcctxyz.y + mtxma[5]* dcctxyz.z;
+    lms_dst.z = mtxma[6] * dcctxyz.x + mtxma[7] * dcctxyz.y + mtxma[8]* dcctxyz.z;
+ 
+    //calculate matrix M
+    mtxm[0] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[1] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[2] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[8];
+    mtxm[3] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[4] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[5] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[8];
+    mtxm[6] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[7] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[8] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[8];
+
+    //read image source RGB value
+    float src_R = p_R;
+    float src_G = p_G;
+    float src_B = p_B;
+
+    //convert image source RGB value into XYZ
+    float src_X = mtxap0xyz[0] * src_R + mtxap0xyz[1] * src_G + mtxap0xyz[2] * src_B;
+    float src_Y = mtxap0xyz[3] * src_R + mtxap0xyz[4] * src_G + mtxap0xyz[5] * src_B;
+    float src_Z = mtxap0xyz[6] * src_R + mtxap0xyz[7] * src_G + mtxap0xyz[8] * src_B;
+    
+    //apply matrix M to XYZ value (chromatic adaptation)
+    float dst_X = mtxm[0] * src_X + mtxm[1] * src_Y + mtxm[2] * src_Z;
+    float dst_Y = mtxm[3] * src_X + mtxm[4] * src_Y + mtxm[5] * src_Z;
+    float dst_Z = mtxm[6] * src_X + mtxm[7] * src_Y + mtxm[8] * src_Z;
+
+    //convert XYZ after adaptation back to ACES AP0 RGB
+    float dst_R = mtxxyzap0[0] * dst_X + mtxxyzap0[1] * dst_Y + mtxxyzap0[2] * dst_Z;
+    float dst_G = mtxxyzap0[3] * dst_X + mtxxyzap0[4] * dst_Y + mtxxyzap0[5] * dst_Z;
+    float dst_B = mtxxyzap0[6] * dst_X + mtxxyzap0[7] * dst_Y + mtxxyzap0[8] * dst_Z;
+
+    return make_float3(dst_R, dst_G, dst_B);
+}
