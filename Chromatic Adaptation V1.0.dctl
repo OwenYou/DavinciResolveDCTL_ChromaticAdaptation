@@ -80,8 +80,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
      -0.7502f, 1.7135f, 0.0367f, 
      0.0389f, -0.0685f, 1.0296f};
 
-    //reverse of matrix MA (see reference 01)
-    const float mtxma_rev[9]=
+    //inverse of matrix MA (see reference 01)
+    const float mtxma_inv[9]=
     {0.9869929f, -0.1470543f, 0.1599627f,
      0.4323053f, 0.5183603f, 0.0492912f,
     -0.0085287f, 0.0400428f, 0.9684867f};
@@ -100,15 +100,15 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     lms_dst.z = mtxma[6] * dcctxyz.x + mtxma[7] * dcctxyz.y + mtxma[8]* dcctxyz.z;
  
     //calculate matrix M
-    mtxm[0] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[6];
-    mtxm[1] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[7];
-    mtxm[2] = mtxma_rev[0] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[1] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[2] * (lms_dst.z/lms_src.z) * mtxma[8];
-    mtxm[3] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[6];
-    mtxm[4] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[7];
-    mtxm[5] = mtxma_rev[3] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[4] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[5] * (lms_dst.z/lms_src.z) * mtxma[8];
-    mtxm[6] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[6];
-    mtxm[7] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[7];
-    mtxm[8] = mtxma_rev[6] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_rev[7] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_rev[8] * (lms_dst.z/lms_src.z) * mtxma[8];
+    mtxm[0] = mtxma_inv[0] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_inv[1] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_inv[2] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[1] = mtxma_inv[0] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_inv[1] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_inv[2] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[2] = mtxma_inv[0] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_inv[1] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_inv[2] * (lms_dst.z/lms_src.z) * mtxma[8];
+    mtxm[3] = mtxma_inv[3] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_inv[4] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_inv[5] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[4] = mtxma_inv[3] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_inv[4] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_inv[5] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[5] = mtxma_inv[3] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_inv[4] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_inv[5] * (lms_dst.z/lms_src.z) * mtxma[8];
+    mtxm[6] = mtxma_inv[6] * (lms_dst.x/lms_src.x) * mtxma[0] + mtxma_inv[7] * (lms_dst.y/lms_src.y) * mtxma[3] + mtxma_inv[8] * (lms_dst.z/lms_src.z) * mtxma[6];
+    mtxm[7] = mtxma_inv[6] * (lms_dst.x/lms_src.x) * mtxma[1] + mtxma_inv[7] * (lms_dst.y/lms_src.y) * mtxma[4] + mtxma_inv[8] * (lms_dst.z/lms_src.z) * mtxma[7];
+    mtxm[8] = mtxma_inv[6] * (lms_dst.x/lms_src.x) * mtxma[2] + mtxma_inv[7] * (lms_dst.y/lms_src.y) * mtxma[5] + mtxma_inv[8] * (lms_dst.z/lms_src.z) * mtxma[8];
 
     //read image source RGB value
     float src_R = p_R;
