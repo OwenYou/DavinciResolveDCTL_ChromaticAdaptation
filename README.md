@@ -1,2 +1,4 @@
 # DavinciResolveDCTL_ChromaticAdaptation
-Uses DCTL to implement chromatic adaptation algorithm
+Personal Practice. Uses DCTL to implement chromatic adaptation algorithm.
+
+Tested with Resolve 15.
